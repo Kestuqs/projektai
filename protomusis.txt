@@ -1,0 +1,372 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Channels;
+
+namespace ProtoMusis
+{
+    public class User
+    {
+        public string FirstName { get; }
+        public string LastName { get; }
+        public int Points { get;  set; }
+
+        public User(string firstName, string lastName)
+        {
+            FirstName = firstName;
+            LastName = lastName;
+            Points = 0;
+        }
+
+        public void AddPoints(int points)
+        {
+            Points += points;
+        }
+    }
+
+    public class Question
+    {
+        public string Text { get; }
+        public string[] Options { get; }
+        public int CorrectAnswerIndex { get; }
+
+        public Question(string text, string[] options, int correctAnswerIndex)
+        {
+            Text = text;
+            Options = options;
+            CorrectAnswerIndex = correctAnswerIndex;
+        }
+
+        public bool IsCorrectAnswer(int answerIndex)
+        {
+            return answerIndex == CorrectAnswerIndex;
+        }
+    }
+
+    class Program
+    {
+        static Dictionary<string, User> users = new Dictionary<string, User>();
+        static User currentUser = null;
+        static bool isAdmin = false;
+        static List<Question> questions = new List<Question>();
+        static string filePath = "zaidejai.csv";
+
+        static void Main(string[] args)
+        {
+            Console.OutputEncoding = Encoding.UTF8;
+            LoadUsersFromFile();  // Užkrauname žaidėjus iš failo
+            InitializeQuestions();  // Inicializuojame klausimus
+            ShowLoginScreen();  // Rodyti prisijungimo ekraną
+            SaveUsersToFile();  // Išsaugome visus vartotojus į failą
+        }
+
+        static void LoadUsersFromFile()
+        {
+            if (File.Exists(filePath))
+            {
+                string[] lines = File.ReadAllLines(filePath);
+                foreach (string line in lines)
+                {
+                    string[] data = line.Split(',');
+                    if (data.Length == 3)
+                    {
+                        string firstName = data[0];
+                        string lastName = data[1];
+                        int points = int.Parse(data[2]);
+
+                        string fullName = firstName + " " + lastName;
+                        users[fullName] = new User(firstName, lastName) { Points = points };
+                    }
+                }
+            }
+        }
+
+        static void SaveUsersToFile()
+        {
+            using (StreamWriter writer = new StreamWriter(filePath))
+            {
+                foreach (var user in users.Values)
+                {
+                    writer.WriteLine($"{user.FirstName},{user.LastName},{user.Points}");
+                }
+            }
+        }
+
+        static void InitializeQuestions()
+        {
+            questions.Add(new Question("                     Kokia yra Albanijos sostinė?", new string[] { "Tirana", "Kaunas", "Klaipėda", "Šiauliai" }, 0));
+            questions.Add(new Question("                     Kokia yra ilgiausia upė Lietuvoje?", new string[] { "Neris", "Nemunas", "Šventoji", "Merkys" }, 1));
+            questions.Add(new Question("                     Kuris miestas vadinamas Lietuvos uostamiesčiu?", new string[] { "Kaunas", "Klaipėda", "Panevėžys", "Vilnius" }, 1));
+            questions.Add(new Question("                     Kur teka upė Nilas?", new string[] { "Pietų Amerika", "Europa", "Azija", "Afrika" }, 3));
+        }
+
+        static void ShowLoginScreen()
+        {
+            Console.Clear();
+            Console.WriteLine("    ---- Proto Mūšis ----");
+            Console.WriteLine();
+            Console.WriteLine("      **** Sveiki! ****");
+            Console.WriteLine();
+            Console.WriteLine(" <<< Prašome prisijungti įvesdami savo vardą ir pavardę! >>>");
+            Console.WriteLine();
+            Console.WriteLine("   <><><><><><><><><><><><><><><><><><><><><><><><><><>");
+            Console.Write("     Įveskite vardą: >");
+            string firstName = Console.ReadLine();
+            Console.Write("     Įveskite pavardę: > ");
+            string lastName = Console.ReadLine();
+
+            string fullName = firstName + " " + lastName;
+
+            if (firstName == "Admin" && lastName == "Admin")
+            {
+                isAdmin = true;
+                Console.WriteLine("Prisijungėte kaip administratorius.");
+            }
+            else if (users.ContainsKey(fullName))
+            {
+                currentUser = users[fullName];
+                Console.WriteLine();
+                Console.WriteLine($"    Prisijungėte kaip egzistuojantis vartotojas: {currentUser.FirstName} {currentUser.LastName}");
+                Console.WriteLine("   <><>Paspauskite bet kurį klavišą, kad tęstumėte<><>");
+            }
+            else
+            {
+                currentUser = new User(firstName, lastName);
+                users[fullName] = currentUser;
+                Console.WriteLine($"  Naujas vartotojas sukurtas: Sveiki, {currentUser.FirstName} {currentUser.LastName}!");
+            }
+
+            SaveUsersToFile();
+            Console.ReadKey();
+            ShowMainMenu();
+        }
+
+        static void ShowMainMenu()
+        { 
+            bool running = true;
+            while (running)
+            {
+                Console.Clear();
+                RefreshScreen();// Iškviečiama atnaujinta ekraną prieš meniu rodymą
+                Console.WriteLine();
+                Console.WriteLine("       **** Meniu ****   ");
+                Console.WriteLine();
+                Console.WriteLine("  [1] -- Žaidimo taisyklės ");
+                Console.WriteLine("  [2] -- Pradėti žaidimą ");
+                Console.WriteLine("  [3] -- Peržiūrėti rezultatus ");
+                Console.WriteLine("  [4] -- Atsijungti ");
+                Console.WriteLine("  [5] -- Išeiti iš programos ");
+                Console.WriteLine();
+                
+
+                if (isAdmin)
+                {
+                    Console.WriteLine("  [6] -- Trinti žaidėją ");
+                }
+                Console.Write("  *** Pasirinkite veiksmą: *** ");
+                string choice = Console.ReadLine();
+
+
+                switch (choice.ToUpper())
+                {
+                    case "1":
+                        ShowRules();
+                        RefreshScreen();  // Grįžus atnaujiname ekraną
+                        break;
+                    case "2":
+                        StartGame();
+                        SaveUsersToFile();
+                        RefreshScreen();  // Grįžus atnaujiname ekraną
+                        break;
+                    case "3":
+                        ShowResults();
+                        RefreshScreen();  // Grįžus atnaujiname ekraną
+                        break;
+                    case "4":
+                        Logout();
+                        return;
+                    case "5":
+                        ExitGame();
+                        return;
+                    case "6":
+                        if (isAdmin) DeleteUser();
+                        break;
+                    default:
+                        Console.WriteLine("Neteisingas pasirinkimas. Bandykite dar kartą.");
+                        break;
+                }
+            }
+           
+        }
+        static void RefreshScreen()
+        { 
+            Console.Clear();
+            if (currentUser != null)
+            {
+                Console.WriteLine($"Prisijungta kaip: {currentUser.FirstName} {currentUser.LastName}");
+                Console.WriteLine("------------------------------");
+            }
+            else
+            {
+                Console.WriteLine("Prisijungusio vartotojo nėra.");
+                Console.WriteLine("------------------------------");
+            }
+        }
+
+        static void ShowRules()
+        {
+            Console.Clear();
+            RefreshScreen();
+            Console.WriteLine("        ---- Žaidimo taisyklės ----");
+            Console.WriteLine();
+            Console.WriteLine("   1. Žaidimas susideda iš kelių klausimų.");
+            Console.WriteLine("   2. Teisingai atsakyti klausimai suteikia taškus.");
+            Console.WriteLine("   3. Dalyviai gali pamatyti savo rezultatus.");
+            Console.WriteLine("   4. Privaloma laikytis taisyklių ir žaisti sąžiningai.");
+            Console.WriteLine();
+            Console.WriteLine("   Įveskite Q, kad grįžtumėte į meniu.");
+            WaitForBackToMenu();
+        }
+
+        static void StartGame()
+        {
+            if (currentUser == null)
+            {
+                Console.WriteLine("Turite prisijungti, kad pradėtumėte žaidimą.");
+                Console.ReadKey();
+                return;
+            }
+            Console.Clear();
+            RefreshScreen();
+            Console.WriteLine("                        ---- Žaidimas prasideda ----");
+            Console.WriteLine("");
+
+            var random = new Random();
+            List<Question> shuffledQuestions = questions.OrderBy(q => random.Next()).ToList();
+
+            foreach (var question in shuffledQuestions)
+            {
+                Console.WriteLine(question.Text);
+                for (int i = 0; i < question.Options.Length; i++)
+                {
+                    Console.WriteLine($"{i + 1}. {question.Options[i]}");
+                }
+
+                Console.Write("Pasirinkite teisingą atsakymą (1-4): ");
+                if (int.TryParse(Console.ReadLine(), out int answerIndex) && answerIndex > 0 && answerIndex <= question.Options.Length)
+                {
+                    if (question.IsCorrectAnswer(answerIndex - 1))
+                    {
+                        Console.WriteLine("Teisingas atsakymas!");
+                        Console.WriteLine("**************************************");
+                        currentUser.AddPoints(1);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Neteisingas atsakymas.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Neteisingas pasirinkimas. Pasirinkite skaičių nuo 1 iki 4.");
+                }
+                Console.WriteLine("Paspauskite bet kurį klavišą, kad tęstumėte.");
+                Console.WriteLine();
+                Console.ReadKey();
+            }
+
+            Console.WriteLine("Žaidimas baigtas! Grįžtame į meniu.");
+            Console.ReadKey();
+        }
+
+        static void ShowResults()
+        {
+            Console.Clear();
+            RefreshScreen();
+            Console.WriteLine("          ---- Rezultatai ----");
+            Console.WriteLine();
+            Console.WriteLine(" {0, -15} {1, -15} {2, -10} {3}", "Vardas:", "Pavardė:", "Taškai:", "Pozicija:");
+            Console.WriteLine();
+            var sortedUsers = users.Values.OrderByDescending(u => u.Points).ToList();
+            for (int i = 0; i < sortedUsers.Count && i < 100; i++)
+            {
+                var user = sortedUsers[i];
+                Console.WriteLine();
+                string stars = i == 0 ? "*" : i == 1 ? "**" : i == 2 ? "***" : "";
+
+                Console.WriteLine(" {0, -15} {1, -15} {2, -10} {3}{4}",
+
+                    user.FirstName,
+                    user.LastName,
+                    user.Points,
+                    $"Top {i + 1}",
+                    stars);
+            }
+            Console.WriteLine();
+            Console.WriteLine("Įveskite Q, kad grįžtumėte į meniu.");
+            WaitForBackToMenu();
+           
+
+        }
+        static void DeleteUser()
+        {
+            Console.Clear();
+            Console.WriteLine("Įveskite vartotojo, kurį norite ištrinti, vardą ir pavardę.");
+            Console.Write("Vardas: ");
+            string firstName = Console.ReadLine();
+            Console.Write("Pavardė: ");
+            string lastName = Console.ReadLine();
+            string fullName = firstName + " " + lastName;
+
+            if (users.ContainsKey(fullName))
+            {
+                users.Remove(fullName);
+                Console.WriteLine($"Vartotojas {fullName} buvo sėkmingai ištrintas.");
+                SaveUsersToFile();
+            }
+            else
+            {
+                Console.WriteLine("Nurodytas vartotojas nerastas.");
+            }
+
+            Console.WriteLine("Paspauskite bet kurį klavišą, kad grįžtumėte į meniu.");
+            Console.ReadKey();
+        }
+
+        static void Logout()
+        {
+            currentUser = null;
+
+            Console.WriteLine("   Sėkmingai atsijungėte.");
+            Console.WriteLine("   ------------------------------------------------------------------");
+            Console.WriteLine("   Paspauskite bet kurį klavišą, kad grižtumėte į prisijungimo langą.");
+            Console.ReadKey();
+            ShowLoginScreen();
+        }
+
+        static void ExitGame()
+        {
+            Console.Clear();
+            Console.WriteLine("Ačiū, kad žaidėte! Iki pasimatymo!");
+            Console.WriteLine(" ");
+            Console.WriteLine("     ()    ()()()   ()()()   () ");
+            Console.WriteLine("    ()()     ()     ()       () ");
+            Console.WriteLine("   ()()()    ()     ()()()   ()  ");
+            Console.WriteLine("  ()    ()   ()     ()        ");
+            Console.WriteLine("  ()    ()   ()     ()()()   ()  ");
+            Console.WriteLine(" ");
+            Environment.Exit(0);
+        }
+
+        static void WaitForBackToMenu()
+        {
+            while (Console.ReadKey().Key != ConsoleKey.Q)
+            {
+                // Laukia, kol paspaudžiamas Q
+            }
+        }
+    }
+}
